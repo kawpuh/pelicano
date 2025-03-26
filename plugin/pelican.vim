@@ -3,6 +3,9 @@ if exists('g:loaded_pelican')
 endif
 let g:loaded_pelican = 1
 
+" Load the Lua functionality
+lua require('pelican')
+
 " Commands
 command! -nargs=0 LLMPrompt lua require('pelican').send_prompt()
 command! -nargs=0 -range LLMSelection lua require('pelican').query_selection()
