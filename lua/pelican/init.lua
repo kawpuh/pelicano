@@ -76,7 +76,7 @@ function M.run_llm(input, options)
   return output
 end
 
--- Query llm with the current selection
+-- Query llm with the current selection as prompt
 function M.query_selection()
   -- Get selected text
   local text
@@ -105,20 +105,11 @@ function M.query_selection()
     text = table.concat(lines, "\n")
   end
 
-  -- Ask for the prompt
-  local prompt = vim.fn.input("Enter prompt: ")
-  if prompt == "" then
-    return
-  end
-
-  -- Combine selected text with the prompt
-  local input = prompt .. "\n\n" .. text
-
   -- Show a notification that we're thinking
-  vim.api.nvim_echo({{"LLM is thinking...", "WarningMsg"}}, true, {})
+  vim.api.nvim_echo({{"\nLLM is thinking...", "WarningMsg"}}, true, {})
 
-  -- Run llm
-  local output = M.run_llm(input)
+  -- Run llm with the selection as the prompt
+  local output = M.run_llm(text)
 
   -- Create a new buffer for the output
   local buf = vim.api.nvim_create_buf(false, true)
@@ -144,7 +135,7 @@ function M.send_prompt()
   end
 
   -- Show a notification that we're thinking
-  vim.api.nvim_echo({{"LLM is thinking...", "WarningMsg"}}, true, {})
+  vim.api.nvim_echo({{"\nLLM is thinking...", "WarningMsg"}}, true, {})
 
   -- Run llm
   local output = M.run_llm(prompt)
