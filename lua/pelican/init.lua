@@ -64,20 +64,14 @@ function M.run_llm(input, options)
   -- Add prompt/input at the end
   table.insert(cmd, input)
   
-  -- Create temporary file for output
-  local tmp_file = vim.fn.tempname()
+  -- Run the command and capture output directly using vim.fn.jobstart for proper shell escaping
+  local output_str = vim.fn.system(cmd)
   
-  -- Append stdout redirection to the command
-  table.insert(cmd, ">")
-  table.insert(cmd, tmp_file)
-  
-  -- Run the command
-  local full_cmd = table.concat(cmd, " ")
-  vim.fn.system(full_cmd)
-  
-  -- Read the output
-  local output = vim.fn.readfile(tmp_file)
-  vim.fn.delete(tmp_file)
+  -- Convert output string to lines
+  local output = {}
+  for line in string.gmatch(output_str, "[^\r\n]+") do
+    table.insert(output, line)
+  end
   
   return output
 end
