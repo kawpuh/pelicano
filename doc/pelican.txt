@@ -1,0 +1,94 @@
+*pelican.txt*  Neovim plugin for interacting with Simon Willison's LLM tool
+
+                          PELICAN PLUGIN HELP
+
+==============================================================================
+CONTENTS                                                     *pelican-contents*
+
+  1. Introduction ......................... |pelican-introduction|
+  2. Installation ......................... |pelican-installation|
+  3. Configuration ........................ |pelican-configuration|
+  4. Commands ............................. |pelican-commands|
+  5. Mappings ............................. |pelican-mappings|
+  6. License .............................. |pelican-license|
+
+==============================================================================
+1. INTRODUCTION                                          *pelican-introduction*
+
+Pelican is a Neovim plugin that provides a seamless interface to interact with
+Simon Willison's LLM CLI tool (https://github.com/simonw/llm).
+
+This plugin enables you to:
+- Send prompts to LLM models directly from Neovim
+- Send selected text as context for LLM prompts
+- Customize models and system prompts
+
+==============================================================================
+2. INSTALLATION                                          *pelican-installation*
+
+Install using your favorite plugin manager.
+
+Example with packer.nvim:
+>lua
+  use {
+    'username/pelican',
+    config = function()
+      require('pelican').setup({
+        -- Optional configuration here
+      })
+    end
+  }
+<
+
+Prerequisites:
+- Simon Willison's LLM CLI tool must be installed on your system
+  (https://github.com/simonw/llm)
+
+==============================================================================
+3. CONFIGURATION                                        *pelican-configuration*
+
+Configure the plugin using the setup function:
+>lua
+  require('pelican').setup({
+    llm_path = "llm",  -- Path to the llm executable
+    default_model = "gpt-4", -- Default model to use
+    default_system_prompt = "You are a helpful assistant", -- Default system prompt
+    default_options = {}, -- Any additional options to pass to llm
+  })
+<
+
+==============================================================================
+4. COMMANDS                                                *pelican-commands*
+
+*:LLMPrompt*
+    Opens an input prompt to send a query to LLM
+
+*:LLMSelection*
+    In visual mode, sends the selected text as context along with a prompt
+
+==============================================================================
+5. MAPPINGS                                                *pelican-mappings*
+
+Default mappings (can be disabled with `let g:pelican_no_default_mappings = 1`):
+
+Normal mode:
+  <leader>llm    - Opens an input prompt to send a query to LLM
+
+Visual mode:
+  <leader>llm    - Sends the selected text as context along with a prompt
+
+You can also use the <Plug> mappings to define your own:
+>vim
+  " Normal mode
+  nmap <leader>p <Plug>(pelican_prompt)
+  
+  " Visual mode
+  vmap <leader>p <Plug>(pelican_selection)
+<
+
+==============================================================================
+6. LICENSE                                                  *pelican-license*
+
+MIT License
+
+vim:tw=78:ts=8:ft=help:norl:

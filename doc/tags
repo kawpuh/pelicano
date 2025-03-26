@@ -1,0 +1,10 @@
+:LLMPrompt	pelican.txt	/*:LLMPrompt*
+:LLMSelection	pelican.txt	/*:LLMSelection*
+pelican-commands	pelican.txt	/*pelican-commands*
+pelican-configuration	pelican.txt	/*pelican-configuration*
+pelican-contents	pelican.txt	/*pelican-contents*
+pelican-installation	pelican.txt	/*pelican-installation*
+pelican-introduction	pelican.txt	/*pelican-introduction*
+pelican-license	pelican.txt	/*pelican-license*
+pelican-mappings	pelican.txt	/*pelican-mappings*
+pelican.txt	pelican.txt	/*pelican.txt*
