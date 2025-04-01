@@ -3,16 +3,23 @@ if exists('g:loaded_pelican')
 endif
 let g:loaded_pelican = 1
 
-" Load the Lua functionality
+" Load and setup the Lua module
 lua require('pelican')
 
 " Commands
-command! -nargs=0 -range LLMSelection lua require('pelican').query_selection()
+command! -nargs=0 -range -bar LLM lua require('pelican').handle_command(<line1>, <line2>, vim.fn.mode())
 
 " Default mappings (can be overridden by user)
 if !exists('g:pelican_no_default_mappings')
-  if !hasmapto('<Plug>(pelican_selection)')
-    vmap <leader>llm :LLMSelection<CR>
-    nmap <leader>llm :%LLMSelection<CR>
+  " Map visual mode
+  vmap <silent> <Plug>(Pelican) :<C-u>LLM<CR>
+  if !hasmapto('<Plug>(Pelican)', 'v')
+    vmap <leader>llm <Plug>(Pelican)
+  endif
+
+  " Map normal mode (will use current line by default, or a specified range)
+  nmap <silent> <Plug>(Pelican) :<C-u>%LLM<CR>
+  if !hasmapto('<Plug>(Pelican)', 'n')
+    nmap <leader>llm <Plug>(Pelican)
   endif
 endif
