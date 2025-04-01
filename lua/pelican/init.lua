@@ -2,10 +2,10 @@ local M = {}
 
 -- Configuration with defaults
 M.config = {
-  llm_path = "llm",  -- Path to the llm executable, default assumes it's in PATH
-  default_model = nil, -- Uses llm's default model
+  llm_path = "llm",            -- Path to the llm executable, default assumes it's in PATH
+  default_model = nil,         -- Uses llm's default model
   default_system_prompt = nil, -- Uses llm's default system prompt
-  default_options = {},  -- Additional options to pass to llm
+  default_options = {},        -- Additional options to pass to llm
 }
 
 -- Setup function to configure the plugin
@@ -19,7 +19,7 @@ function M.run_llm(input, options, callback)
   options = options or {}
 
   -- Build command
-  local cmd = {M.config.llm_path}
+  local cmd = { M.config.llm_path }
 
   -- Add model if specified
   local model = options.model or M.config.default_model
@@ -77,7 +77,7 @@ function M.run_llm(input, options, callback)
       end
       if data then
         -- Split the data by newlines and add to accumulated_output
-        local chunks = vim.split(data, "\n", {plain = true})
+        local chunks = vim.split(data, "\n", { plain = true })
 
         -- Append the first chunk to the last element if it exists
         if #accumulated_output > 0 and #chunks > 0 then
@@ -171,7 +171,7 @@ function M.query_selection()
   vim.api.nvim_buf_set_name(buf, "LLM Response (Thinking...)")
 
   -- Set initial content with just a waiting message
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {"Processing your request..."})
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Processing your request..." })
 
   -- Open the buffer in a new window
   vim.cmd("vsplit")
@@ -179,8 +179,8 @@ function M.query_selection()
   vim.api.nvim_win_set_buf(win, buf)
 
   -- Set mappings for the buffer
-  vim.api.nvim_buf_set_keymap(buf, 'n', 'q', ':q<CR>', {noremap = true, silent = true})
-  vim.api.nvim_buf_set_keymap(buf, 'n', '<Esc>', ':q<CR>', {noremap = true, silent = true})
+  vim.api.nvim_buf_set_keymap(buf, 'n', 'q', ':q<CR>', { noremap = true, silent = true })
+  vim.api.nvim_buf_set_keymap(buf, 'n', '<Esc>', ':q<CR>', { noremap = true, silent = true })
 
   -- Run llm with the selection as the prompt
   local first_update = true
@@ -203,60 +203,5 @@ function M.query_selection()
   end)
 end
 
--- Send a prompt to llm
-function M.send_prompt()
-  -- Ask for the prompt
-  local prompt = vim.fn.input("Enter prompt: ")
-  if prompt == "" then
-    return
-  end
-
-  -- Create a buffer to display the output in when it's ready
-  local buf = vim.api.nvim_create_buf(false, true)
-  vim.api.nvim_buf_set_option(buf, 'buftype', 'nofile')
-  vim.api.nvim_buf_set_option(buf, 'bufhidden', 'wipe')
-  vim.api.nvim_buf_set_option(buf, 'swapfile', false)
-  vim.api.nvim_buf_set_option(buf, 'filetype', 'markdown')
-  vim.api.nvim_buf_set_name(buf, "LLM Response (Thinking...)")
-
-  -- Set initial content
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, {"# Waiting for LLM response...", "", "Processing your request..."})
-
-  -- Open the buffer in a new window
-  vim.cmd("vsplit")
-  local win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(win, buf)
-
-  -- Set mappings for the buffer
-  vim.api.nvim_buf_set_keymap(buf, 'n', 'q', ':q<CR>', {noremap = true, silent = true})
-  vim.api.nvim_buf_set_keymap(buf, 'n', '<Esc>', ':q<CR>', {noremap = true, silent = true})
-
-  -- Run llm
-  local first_update = true
-
-  M.run_llm(prompt, {}, function(output, is_complete)
-    -- Update buffer with output
-    if vim.api.nvim_buf_is_valid(buf) and vim.api.nvim_win_is_valid(win) then
-      -- Update buffer name based on streaming status
-      if not is_complete then
-        vim.api.nvim_buf_set_name(buf, "LLM Response (Streaming...)")
-      else
-        vim.api.nvim_buf_set_name(buf, "LLM Response (Completed)")
-      end
-
-      -- Clear old content on first update
-      if first_update then
-        vim.api.nvim_buf_set_lines(buf, 0, -1, false, {"# LLM Response", ""})
-        first_update = false
-      end
-
-      -- Update the buffer with current content
-      vim.api.nvim_buf_set_lines(buf, 2, -1, false, output)
-    else
-      -- If buffer was closed, create a new one
-      display_output(output, "LLM Response")
-    end
-  end)
-end
 
 return M

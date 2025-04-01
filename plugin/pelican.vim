@@ -7,7 +7,6 @@ let g:loaded_pelican = 1
 lua require('pelican')
 
 " Commands
-command! -nargs=0 LLMPrompt lua require('pelican').send_prompt()
 command! -nargs=0 -range LLMSelection lua require('pelican').query_selection()
 
 " Default mappings (can be overridden by user)
