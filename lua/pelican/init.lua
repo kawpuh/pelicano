@@ -1,5 +1,7 @@
 local M = {}
 
+require('pelican.scratch')
+
 -- Configuration with defaults
 M.config = {
   llm_path = "llm",            -- Path to the llm executable, default assumes it's in PATH
@@ -15,6 +17,35 @@ local running_jobs = {} -- { bufnr = job_id }
 function M.setup(opts)
   opts = opts or {}
   M.config = vim.tbl_deep_extend("force", M.config, opts)
+end
+
+-- Creates a new scratch buffer for the LLM output
+local function create_scratch_buffer()
+  -- Ensure the scratch directory exists
+  local scratch_dir = vim.fn.expand('~/.local/share/nvim/scratch')
+  if vim.fn.isdirectory(scratch_dir) == 0 then
+    vim.fn.mkdir(scratch_dir, 'p')
+  end
+
+  -- Create a timestamp for the filename (format: YYYY-MM-DD_HH-MM-SS)
+  local timestamp = os.date('%Y-%m-%d_%H-%M-%S')
+  local filename = scratch_dir .. '/' .. timestamp .. '.md'
+
+  -- Remember the current window
+  local current_win = vim.api.nvim_get_current_win()
+
+  -- Open a new vertical split with the scratch file
+  vim.cmd('vsplit ' .. vim.fn.fnameescape(filename))
+  local buf = vim.api.nvim_get_current_buf()
+  local out_win = vim.api.nvim_get_current_win()
+
+  -- Set buffer options
+  vim.api.nvim_buf_set_option(buf, 'filetype', 'markdown')
+
+  -- Return to the original window
+  vim.api.nvim_set_current_win(current_win)
+
+  return buf, out_win
 end
 
 -- Helper function to run llm and get output
@@ -132,6 +163,15 @@ function M.run_llm(input, options, bufnr, callback)
   return job_id
 end
 
+-- Function to stop a running job
+function M.stop_job(bufnr)
+  local job_id = running_jobs[bufnr]
+  if job_id then
+    vim.system({'kill', tostring(job_id)})
+    running_jobs[bufnr] = nil
+  end
+end
+
 -- Get the current visual selection
 local function get_visual_selection()
   local start_pos = vim.fn.getpos("'<")
@@ -199,46 +239,29 @@ local function get_range_text(start_line, end_line)
 end
 
 -- Core function to process text, display output, and handle streaming
-local function process_text(text, title_suffix, options)
+local function process_text(text, options)
   if not text or text == "" then
     vim.notify("No text provided to process.", vim.log.levels.WARN)
     return
   end
 
-  -- Create a new buffer for the output
-  local buf = vim.api.nvim_create_buf(true, true)
-  -- Set buffer options
-  vim.api.nvim_buf_set_option(buf, 'buftype', 'nofile')
-  vim.api.nvim_buf_set_option(buf, 'swapfile', false)
-  vim.api.nvim_buf_set_option(buf, 'filetype', 'markdown')
-  vim.api.nvim_buf_set_name(buf, "LLM Response (" .. (title_suffix or "Processing") .. "...)")
+  -- Create a new scratch buffer
+  local buf, out_win = create_scratch_buffer()
 
   -- Set initial content
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Requesting response from LLM..." })
-  vim.api.nvim_buf_set_option(buf, 'readonly', true) -- Make read-only initially
-
-  -- Open the buffer in a new vertical split
-  local current_win = vim.api.nvim_get_current_win()
-  vim.cmd("vsplit")
-  local out_win = vim.api.nvim_get_current_win()
-  vim.api.nvim_win_set_buf(out_win, buf)
-  vim.api.nvim_set_current_win(current_win) -- Focus back on original window
 
   -- --- Streaming Update Logic ---
   local first_update = true
   local function update_buffer(output_lines, is_complete)
-    -- Check if buffer and window still exist before updating
+    -- Check if buffer still exists before updating
     if not vim.api.nvim_buf_is_valid(buf) then
-        -- vim.notify("LLM: Output buffer " .. buf .. " is no longer valid. Stopping updates.", vim.log.levels.INFO)
         M.stop_job(buf) -- Ensure job is stopped if buffer gone
         return
     end
 
-    -- Need to make buffer writable to change lines
-    vim.api.nvim_buf_set_option(buf, 'readonly', false)
-
     if first_update then
-        -- Clear the "Processing..." message only on the very first actual data update
+        -- Clear the "Processing..." message only on the first actual data update
         if #output_lines > 0 or is_complete then
              vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
              first_update = false
@@ -250,19 +273,12 @@ local function process_text(text, title_suffix, options)
 
     -- Keep cursor at the end of the buffer for streaming effect
     local line_count = vim.api.nvim_buf_line_count(buf)
-    pcall(vim.api.nvim_win_set_cursor, out_win, {line_count, 0}) -- Use pcall as window might be closed
+    pcall(vim.api.nvim_win_set_cursor, out_win, {line_count, 0})
 
-    -- Final actions when complete
+    -- Mark as modified when complete to encourage saving
     if is_complete then
-        vim.api.nvim_buf_set_name(buf, "LLM Response (" .. (title_suffix or "Completed") .. ")")
-        -- Make buffer read-only again, allow normal movement etc.
-         vim.api.nvim_buf_set_option(buf, 'readonly', true)
-         vim.api.nvim_buf_set_option(buf, 'modifiable', false) -- Also set modifiable
-         -- Clear the job tracking explicitly on completion
-         running_jobs[buf] = nil
-    else
-        -- Still streaming, keep it readonly for safety between updates
-        vim.api.nvim_buf_set_option(buf, 'readonly', true)
+        vim.api.nvim_buf_set_option(buf, 'modified', true)
+        running_jobs[buf] = nil
     end
   end
   -- --- End Streaming Update Logic ---
@@ -273,10 +289,8 @@ local function process_text(text, title_suffix, options)
   if not job_id then
     -- Handle immediate failure to start job
     if vim.api.nvim_buf_is_valid(buf) then
-      vim.api.nvim_buf_set_option(buf, 'readonly', false)
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Error: Could not start LLM process." })
-      vim.api.nvim_buf_set_option(buf, 'readonly', true)
-      vim.api.nvim_buf_set_option(buf, 'modifiable', false)
+      vim.api.nvim_buf_set_option(buf, 'modified', true)
     end
   end
 end
@@ -292,7 +306,7 @@ function M.query_selection(options)
     vim.notify("No text selected or selection is empty.", vim.log.levels.WARN)
     return
   end
-  process_text(text, "Selection", options)
+  process_text(text, options)
 end
 
 -- Public function to query with a line range
@@ -302,12 +316,11 @@ function M.query_range(start_line, end_line, options)
     vim.notify(err, vim.log.levels.ERROR)
     return
   end
-   if not text then
+  if not text then
     vim.notify("No text in selected range.", vim.log.levels.WARN)
     return
   end
-  local title = ("Lines %d-%d"):format(start_line, end_line)
-  process_text(text, title, options)
+  process_text(text, options)
 end
 
 -- Parse command line arguments into options table
@@ -393,4 +406,3 @@ function M.handle_command(line1, line2, mode, args)
 end
 
 return M
-

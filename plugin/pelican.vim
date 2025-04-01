@@ -7,7 +7,7 @@ let g:loaded_pelican = 1
 lua require('pelican')
 
 " Commands
-command! -nargs=* -range -bar LLM lua require('pelican').handle_command(<line1>, <line2>, vim.fn.mode(), <q-args>)
+command! -nargs=* -range=% -bar LLM lua require('pelican').handle_command(<line1>, <line2>, vim.fn.mode(), <q-args>)
 
 " Default mappings (can be overridden by user)
 if !exists('g:pelican_no_default_mappings')
