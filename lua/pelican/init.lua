@@ -310,11 +310,85 @@ function M.query_range(start_line, end_line, options)
   process_text(text, title, options)
 end
 
-function M.handle_command(line1, line2, mode)
+-- Parse command line arguments into options table
+function M.parse_args(args_str)
+  local options = {}
+
+  -- Split by spaces, respecting quoted strings
+  local parts = {}
+  local in_quotes = false
+  local current = ""
+  local quote_char = nil
+
+  for i = 1, #args_str do
+    local char = args_str:sub(i, i)
+
+    if (char == '"' or char == "'") and (i == 1 or args_str:sub(i-1, i-1) ~= "\\") then
+      if not in_quotes then
+        in_quotes = true
+        quote_char = char
+      elseif quote_char == char then
+        in_quotes = false
+        quote_char = nil
+      else
+        current = current .. char
+      end
+    elseif char == " " and not in_quotes then
+      if current ~= "" then
+        table.insert(parts, current)
+        current = ""
+      end
+    else
+      current = current .. char
+    end
+  end
+
+  if current ~= "" then
+    table.insert(parts, current)
+  end
+
+  -- Process flags
+  local i = 1
+  while i <= #parts do
+    local part = parts[i]
+
+    if part:sub(1, 2) == "--" then
+      local key = part:sub(3)
+
+      -- Handle --key=value format
+      local equals_pos = key:find("=")
+      if equals_pos then
+        local value = key:sub(equals_pos + 1)
+        key = key:sub(1, equals_pos - 1)
+        options[key] = value
+      -- Check if next part is a value (not a flag)
+      elseif i < #parts and parts[i+1]:sub(1, 2) ~= "--" then
+        options[key] = parts[i+1]
+        i = i + 1 -- Skip the value
+      else
+        -- It's a boolean flag
+        options[key] = true
+      end
+    else
+      -- Positional argument
+      table.insert(options, part)
+    end
+
+    i = i + 1
+  end
+
+  return options
+end
+
+-- Update handle_command to accept and process args
+function M.handle_command(line1, line2, mode, args)
+  -- Parse args into options table
+  local options = M.parse_args(args or "")
+
   if mode == 'v' or mode == 'V' or mode == '\22' then -- Visual, line-Visual, or block-Visual
-    M.query_selection()
+    M.query_selection(options)
   else -- Normal mode with a range
-    M.query_range(line1, line2)
+    M.query_range(line1, line2, options)
   end
 end
 
