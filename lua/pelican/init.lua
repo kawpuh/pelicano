@@ -50,8 +50,36 @@ end
 
 -- Helper function to run llm and get output
 -- Returns job_id or nil on immediate error
-function M.run_llm(input, options, bufnr, callback)
+function M.run_llm(input, options, bufnr, out_win)
   options = options or {}
+
+  local first_update = true
+  local function update_buffer(output_lines, is_complete)
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+        M.stop_job(bufnr) -- Ensure job is stopped if buffer gone
+        return
+    end
+
+    if first_update then
+        if #output_lines > 0 or is_complete then
+             vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {})
+             first_update = false
+        end
+    end
+
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, output_lines)
+
+    -- Keep cursor at the end of the buffer for streaming effect
+    local line_count = vim.api.nvim_buf_line_count(bufnr)
+    pcall(vim.api.nvim_win_set_cursor, out_win, {line_count, 0})
+
+    -- Mark as modified when complete to encourage saving
+    if is_complete then
+        vim.api.nvim_buf_set_option(bufnr, 'modified', true)
+        running_jobs[bufnr] = nil
+    end
+  end
+
 
   -- Build command
   local cmd = { M.config.llm_path }
@@ -91,12 +119,6 @@ function M.run_llm(input, options, bufnr, callback)
   -- Add prompt/input at the end
   table.insert(cmd, input)
 
-  -- Ensure callback is callable
-  if type(callback) ~= "function" then
-    vim.notify("Internal error: Invalid callback provided to run_llm", vim.log.levels.ERROR)
-    return nil
-  end
-
   local accumulated_output = {}
   local job_id = vim.system(cmd, {
     text = true,
@@ -123,7 +145,7 @@ function M.run_llm(input, options, bufnr, callback)
             table.insert(accumulated_output, chunk)
           end
 
-          callback(accumulated_output, false) -- false indicates streaming is ongoing
+          update_buffer(accumulated_output, false) -- false indicates streaming is ongoing
         end
       end)
     end,
@@ -146,7 +168,7 @@ function M.run_llm(input, options, bufnr, callback)
         if code ~= 0 then
             vim.notify("llm exited with code " .. code, vim.log.levels.WARN)
         end
-        callback(accumulated_output, true) -- true indicates streaming is complete
+        update_buffer(accumulated_output, true) -- true indicates streaming is complete
         running_jobs[bufnr] = nil -- Stop tracking finished job
       end)
     end
@@ -251,40 +273,8 @@ local function process_text(text, options)
   -- Set initial content
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Requesting response from LLM..." })
 
-  -- --- Streaming Update Logic ---
-  local first_update = true
-  local function update_buffer(output_lines, is_complete)
-    -- Check if buffer still exists before updating
-    if not vim.api.nvim_buf_is_valid(buf) then
-        M.stop_job(buf) -- Ensure job is stopped if buffer gone
-        return
-    end
-
-    if first_update then
-        -- Clear the "Processing..." message only on the first actual data update
-        if #output_lines > 0 or is_complete then
-             vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
-             first_update = false
-        end
-    end
-
-    -- Update the buffer content
-    vim.api.nvim_buf_set_lines(buf, 0, -1, false, output_lines)
-
-    -- Keep cursor at the end of the buffer for streaming effect
-    local line_count = vim.api.nvim_buf_line_count(buf)
-    pcall(vim.api.nvim_win_set_cursor, out_win, {line_count, 0})
-
-    -- Mark as modified when complete to encourage saving
-    if is_complete then
-        vim.api.nvim_buf_set_option(buf, 'modified', true)
-        running_jobs[buf] = nil
-    end
-  end
-  -- --- End Streaming Update Logic ---
-
   -- Run llm with the text as the prompt
-  local job_id = M.run_llm(text, options or {}, buf, update_buffer)
+  local job_id = M.run_llm(text, options or {}, buf, out_win)
 
   if not job_id then
     -- Handle immediate failure to start job
