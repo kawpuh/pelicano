@@ -24,7 +24,7 @@ require('pelican').setup({
 ### Commands
 
 - `:Scratch` - Creates a new scratch file
-- `:OpenLatestScratch` - Creates a new scratch file
+- `:OpenLatestScratch`
 - `:LLM` - Call LLM with the current buffer or visual selection as input. Can also take command line args as expected. e.g. `:LLM -m claude-3.7-sonnet`
 
 ### Default Mappings

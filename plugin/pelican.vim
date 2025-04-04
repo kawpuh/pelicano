@@ -15,21 +15,3 @@ command! -nargs=0 OpenLatestScratch lua require('pelican.scratch').open_latest_s
 
 " Setup scratch auto-save functionality
 lua require('pelican.scratch').setup_scratch_autosave()
-
-" Default mappings (can be overridden by user)
-if !exists('g:pelican_no_default_mappings')
-  " Map visual mode
-  vmap <silent> <Plug>(Pelican) :<C-u>LLM<CR>
-  if !hasmapto('<Plug>(Pelican)', 'v')
-    vmap <C-g> <Plug>(Pelican)
-  endif
-
-  " Map normal mode (will use current line by default, or a specified range)
-  nmap <silent> <Plug>(Pelican) :<C-u>%LLM<CR>
-  if !hasmapto('<Plug>(Pelican)', 'n')
-    nmap <C-g> <Plug>(Pelican)
-  endif
-
-  nmap <leader>llm :LLM<space>
-endif
-
