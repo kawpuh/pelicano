@@ -5,9 +5,6 @@ local scratch = require('pelican.scratch')
 -- Configuration with defaults
 M.config = {
   llm_path = "llm",            -- Path to the llm executable, default assumes it's in PATH
-  default_model = nil,         -- Uses llm's default model
-  default_system_prompt = nil, -- Uses llm's default system prompt
-  default_options = {},        -- Additional options to pass to llm
 }
 
 -- Keep track of running jobs associated with buffers
@@ -77,21 +74,21 @@ function M.run_llm(input, options, bufnr, out_win)
   local cmd = { M.config.llm_path }
 
   -- Add model if specified
-  local model = options.model or M.config.default_model
+  local model = options.model
   if model then
     table.insert(cmd, "--model")
     table.insert(cmd, model)
   end
 
   -- Add system prompt if specified
-  local system = options.system or M.config.default_system_prompt
+  local system = options.system
   if system then
     table.insert(cmd, "--system")
     table.insert(cmd, system)
   end
 
   -- Add any other options from config (merged with specific options)
-  local merged_options = vim.tbl_deep_extend("force", vim.deepcopy(M.config.default_options), options)
+  local merged_options = vim.tbl_deep_extend("force", {}, options)
   for k, v in pairs(merged_options) do
     if k ~= "model" and k ~= "system" then
       if type(k) == "number" then -- Positional argument
