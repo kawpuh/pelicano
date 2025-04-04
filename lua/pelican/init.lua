@@ -1,6 +1,6 @@
 local M = {}
 
-require('pelican.scratch')
+local scratch = require('pelican.scratch')
 
 -- Configuration with defaults
 M.config = {
@@ -21,26 +21,18 @@ end
 
 -- Creates a new scratch buffer for the LLM output
 local function create_scratch_buffer()
-  -- Ensure the scratch directory exists
-  local scratch_dir = vim.fn.expand('~/.local/share/nvim/scratch')
-  if vim.fn.isdirectory(scratch_dir) == 0 then
-    vim.fn.mkdir(scratch_dir, 'p')
-  end
-
-  -- Create a timestamp for the filename (format: YYYY-MM-DD_HH-MM-SS)
-  local timestamp = os.date('%Y-%m-%d_%H-%M-%S')
-  local filename = scratch_dir .. '/' .. timestamp .. '.md'
-
   -- Remember the current window
   local current_win = vim.api.nvim_get_current_win()
 
-  -- Open a new vertical split with the scratch file
-  vim.cmd('vsplit ' .. vim.fn.fnameescape(filename))
-  local buf = vim.api.nvim_get_current_buf()
+  -- Create a vertical split
+  vim.cmd('vsplit')
   local out_win = vim.api.nvim_get_current_win()
 
-  -- Set buffer options
-  vim.api.nvim_buf_set_option(buf, 'filetype', 'markdown')
+  -- Call create_scratch_file in the new split
+  scratch.create_scratch_file()
+
+  -- Get the buffer created in the new window
+  local buf = vim.api.nvim_get_current_buf()
 
   -- Return to the original window
   vim.api.nvim_set_current_win(current_win)
