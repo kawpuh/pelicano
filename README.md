@@ -31,12 +31,6 @@ require('pelican').setup({
 
 Files in the scratch folder autosave with a 1 second debounce.
 
-### Default Mappings
-
-Default mappings (can be disabled with `let g:pelican_no_default_mappings = 1`):
-
-- `<leader>llm` - Opens `:LLM` ready for you to type command line args
-- `<C-g>` - Calls `:LLM`
 
 ## License
 
