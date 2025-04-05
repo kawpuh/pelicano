@@ -26,6 +26,7 @@ require('pelican').setup({
 - `:Scratch` - Create a new markdown scratch file with a timestamp based name.
 - `:OpenLatestScratch` - Open last modified file in scratch folder.
 - `:LLM` - Call LLM with the current buffer or visual selection as input. Streams output to a new scratch buffer in a vertical split window. Can also take command line args as expected. e.g. `:LLM -m claude-3.7-sonnet`
+- `:YankCodeBlock` - Yank buffer/selection as Markdown code block.
 
 #### Note
 

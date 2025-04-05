@@ -143,4 +143,49 @@ function M.open_latest_scratch()
   end
 end
 
+-- yank -----------------------------------------------------------------------
+-- Function to get text, format it, and yank it
+function M.yank_as_codeblock(opts)
+  -- opts contains information about the command invocation, including:
+  -- opts.line1: starting line number (1-based)
+  -- opts.line2: ending line number (1-based)
+  -- opts.range: number of items in the range (2 for visual line, 0 for %) -- less useful here
+
+  -- Get the lines based on the provided range
+  -- nvim_buf_get_lines requires 0-based indexing and end line is exclusive
+  local lines = vim.api.nvim_buf_get_lines(0, opts.line1 - 1, opts.line2, false)
+
+  -- Check if we actually got any lines
+  if not lines or #lines == 0 then
+    vim.notify("No text selected or buffer is empty.", vim.log.levels.WARN)
+    return
+  end
+
+  -- Join the lines back into a single string with newlines
+  local text_content = table.concat(lines, "\n")
+
+  -- Get the filetype of the current buffer
+  local filetype = vim.bo.filetype
+  -- Use an empty string if filetype is not set or empty, so we get ``` rather than ```nil
+  local lang_tag = filetype and #filetype > 0 and filetype or ""
+  -- Format the text as a markdown code block
+  local formatted_text = string.format("```%s\n%s\n```", lang_tag, text_content)
+
+  -- Yank the formatted text to the default register (")
+  vim.fn.setreg('"', formatted_text)
+  -- Optional: also set the system clipboard register (+) if you want
+  -- vim.fn.setreg('+', formatted_text)
+
+  -- Notify the user
+  local line_count = #lines
+  local message = string.format("Yanked %d lines as '%s' code block", line_count,
+    lang_tag ~= "" and lang_tag or "markdown")
+  -- Slightly shorten message if it gets too long (optional)
+  vim.notify(message, vim.log.levels.INFO, { title = "YankCodeblock" })
+
+  -- Optional: Briefly highlight the yanked area (Neovim often does this automatically)
+  -- vim.cmd('normal! gv') -- Re-select visually
+  -- vim.highlight.on_yank({timeout = 200}) -- Trigger highlight manually if needed
+end
+
 return M
