@@ -33,6 +33,10 @@ require('pelican').setup({
 - `:YankCodeBlock` - Yank buffer/selection as Markdown code block.
 - `:SelectCodeBlock` - If the cursor is within a Markdown code block, visually select the content of the code block.
 
+#### Note
+
+Files in the scratch folder autosave with a 1 second debounce.
+
 ## Example Keymap
 
 ```vim
@@ -55,12 +59,6 @@ augroup PelicanMarkdown
     au FileType markdown vnoremap <buffer> <C-g> :<C-u>LLM -m claude-3.7-sonnet -o thinking_budget 32000<CR>
 augroup end
 ```
-
-
-#### Note
-
-Files in the scratch folder autosave with a 1 second debounce.
-
 
 ## License
 
