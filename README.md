@@ -2,6 +2,10 @@
 
 A Neovim plugin for interacting with [Simon Willison's LLM CLI tool](https://github.com/simonw/llm).
 
+## Demo
+
+![output](https://github.com/user-attachments/assets/8878ebec-9c11-495b-9939-98d0a4a3bea2)
+
 ## Features
 
 - Basically a simple scratch buffer plugin + a mechanism for streaming results from the LLM CLI tool.
