@@ -23,9 +23,13 @@ require('pelican').setup({
 
 ### Commands
 
-- `:Scratch` - Creates a new scratch file
-- `:OpenLatestScratch`
+- `:Scratch` - Create a new markdown scratch file with a timestamp based name.
+- `:OpenLatestScratch` - Open last modified file in scratch folder.
 - `:LLM` - Call LLM with the current buffer or visual selection as input. Can also take command line args as expected. e.g. `:LLM -m claude-3.7-sonnet`
+
+#### Note
+
+Files in the scratch folder autosave with a 1 second debounce.
 
 ### Default Mappings
 
