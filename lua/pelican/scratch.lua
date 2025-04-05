@@ -188,4 +188,48 @@ function M.yank_as_codeblock(opts)
   -- vim.highlight.on_yank({timeout = 200}) -- Trigger highlight manually if needed
 end
 
+function M.select_within_code_block()
+    -- Get current buffer
+    local bufnr = vim.api.nvim_get_current_buf()
+    -- Get cursor position
+    local cursor_pos = vim.api.nvim_win_get_cursor(0)
+    local current_line = cursor_pos[1]
+    -- Find start of code block (searching backwards)
+    local start_line = current_line
+    while start_line > 0 do
+        local line = vim.api.nvim_buf_get_lines(bufnr, start_line - 1, start_line, false)[1]
+        if line and line:match("^```") then
+            break
+        end
+        start_line = start_line - 1
+    end
+    -- Find end of code block (searching forwards)
+    local last_line = vim.api.nvim_buf_line_count(bufnr)
+    local end_line = current_line
+    while end_line <= last_line do
+        local line = vim.api.nvim_buf_get_lines(bufnr, end_line - 1, end_line, false)[1]
+        if line and line:match("^```%s*$") then break
+        end
+        end_line = end_line + 1
+    end
+    -- If we found both delimiters, make the selection
+    if start_line > 0 and end_line <= last_line then
+        -- Move to start line + 1 (skip the opening delimiter)
+        vim.api.nvim_win_set_cursor(0, {start_line + 1, 0})
+        -- Enter normal visual mode
+        vim.cmd('normal! v')
+        -- Move to end line - 1 (exclude the closing delimiter)
+        -- Get the content of the last line to select
+        local last_content_line = vim.api.nvim_buf_get_lines(bufnr, end_line - 2, end_line - 1, false)[1]
+        local last_col = 0
+        if last_content_line then
+            last_col = #last_content_line
+        end
+        -- Move to the end of the last line of content
+        vim.api.nvim_win_set_cursor(0, {end_line - 1, last_col - 1})
+    else
+        print("No code block found")
+    end
+end
+
 return M
