@@ -384,4 +384,125 @@ function M.handle_command(line1, line2, mode, args)
   end
 end
 
+-- Function to show llm logs in a scratch buffer
+function M.show_logs(options)
+  options = options or {}
+
+  -- Create a new scratch buffer
+  local buf, out_win = create_scratch_buffer()
+
+  -- Set initial content
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Loading LLM logs..." })
+
+  -- Build command
+  local cmd = { M.config.llm_path, "logs" }
+
+  -- Add any other options from the options parameter
+  for k, v in pairs(options) do
+    if type(k) == "number" then -- Positional argument
+      table.insert(cmd, tostring(v))
+    else -- Named argument
+      -- Handle boolean flags
+      if v == true then
+        table.insert(cmd, "--" .. k)
+      elseif v ~= false then -- Add key and value for non-boolean-false values
+        table.insert(cmd, "--" .. k)
+        table.insert(cmd, tostring(v))
+      end
+    end
+  end
+
+  local first_update = true
+  local function update_buffer(output_lines, is_complete)
+    if not vim.api.nvim_buf_is_valid(buf) then
+      return
+    end
+
+    if first_update then
+      if #output_lines > 0 or is_complete then
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, {})
+        first_update = false
+      end
+    end
+
+    vim.api.nvim_buf_set_lines(buf, 0, -1, false, output_lines)
+
+    -- Keep cursor at the end of the buffer
+    local line_count = vim.api.nvim_buf_line_count(buf)
+    pcall(vim.api.nvim_win_set_cursor, out_win, {line_count, 0})
+
+    -- Mark as modified when complete to encourage saving
+    if is_complete then
+      vim.api.nvim_buf_set_option(buf, 'modified', true)
+    end
+  end
+
+  local accumulated_output = {}
+  local job_id = vim.system(cmd, {
+    text = true,
+    stdout = function(err, data)
+      vim.schedule(function()
+        if not vim.api.nvim_buf_is_valid(buf) then return end -- Check buffer validity
+        if err then
+          vim.notify("Error reading llm logs stdout: " .. vim.inspect(err), vim.log.levels.ERROR)
+          return
+        end
+        if data then
+          -- Split the data by newlines and add to accumulated_output
+          local chunks = vim.split(data, "\n", { plain = true, trimempty = false })
+
+          -- Append the first chunk to the last element if it exists
+          if #accumulated_output > 0 and #chunks > 0 then
+            accumulated_output[#accumulated_output] = accumulated_output[#accumulated_output] .. chunks[1]
+            table.remove(chunks, 1)
+          end
+
+          -- Add remaining chunks as new lines
+          for _, chunk in ipairs(chunks) do
+            table.insert(accumulated_output, chunk)
+          end
+
+          update_buffer(accumulated_output, false) -- false indicates streaming is ongoing
+        end
+      end)
+    end,
+    stderr = function(err, data)
+      vim.schedule(function()
+        if not vim.api.nvim_buf_is_valid(buf) then return end -- Check buffer validity
+        if err then
+          vim.notify("Error reading llm logs stderr: " .. vim.inspect(err), vim.log.levels.ERROR)
+          return
+        end
+        if data and data ~= "" then
+          vim.notify("LLM logs stderr: " .. data, vim.log.levels.WARN)
+        end
+      end)
+    end,
+    on_exit = function(j_id, code, event)
+      vim.schedule(function()
+        if not vim.api.nvim_buf_is_valid(buf) then return end -- Check buffer validity
+        if code ~= 0 then
+          vim.notify("llm logs exited with code " .. code, vim.log.levels.WARN)
+        end
+        update_buffer(accumulated_output, true) -- true indicates streaming is complete
+      end)
+    end
+  })
+
+  if not job_id or job_id == 0 or job_id == -1 then
+    vim.notify("Failed to start llm logs process. Command: " .. table.concat(cmd, " "), vim.log.levels.ERROR)
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Error: Could not start llm logs process." })
+      vim.api.nvim_buf_set_option(buf, 'modified', true)
+    end
+  end
+end
+
+-- Command handler for the logs command
+function M.handle_logs_command(args)
+  -- Parse args into options table
+  local options = M.parse_args(args or "")
+  M.show_logs(options)
+end
+
 return M
