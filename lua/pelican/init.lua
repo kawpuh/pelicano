@@ -46,7 +46,7 @@ local function create_scratch_buffer()
   scratch.create_scratch_file()
   buf = vim.api.nvim_get_current_buf()
 
-  -- IMPORTANT: Return focus to the window the user was originally in
+  -- Return focus to the original window
   vim.api.nvim_set_current_win(original_win)
 
   return buf, new_win
@@ -54,38 +54,53 @@ end
 
 -- Function to stop a running job
 function M.stop_job(bufnr)
-  local job_id = running_jobs[bufnr]
-  if job_id then
-    vim.system({ 'kill', tostring(job_id) })
+  local pid = running_jobs[bufnr]
+  if pid then
+    vim.system({ 'kill', tostring(pid) })
     running_jobs[bufnr] = nil
   end
 end
 
--- Helper function to run llm and get output
--- Returns job_id or nil on immediate error
-function M.run_llm(input, options, bufnr, out_win)
-  options = options or {}
+-- Helper function to split argument string into a list
+local function split_args(args_str)
+  local args = {}
+  local in_quote = false
+  local current = ""
+  local quote_char = nil
 
-  local cmd = { M.config.llm_path }
-
-  local merged_options = vim.tbl_deep_extend("force", {}, options)
-  for k, v in pairs(merged_options) do
-    if type(k) == "number" then
-      table.insert(cmd, tostring(v))
-    else
-      if v == true then
-        table.insert(cmd, "--" .. k)
-      elseif v ~= false then
-        table.insert(cmd, "--" .. k)
-        table.insert(cmd, tostring(v))
+  for i = 1, #args_str do
+    local char = args_str:sub(i, i)
+    if (char == '"' or char == "'") and not in_quote then
+      in_quote = true
+      quote_char = char
+    elseif char == quote_char and in_quote then
+      in_quote = false
+      quote_char = nil
+    elseif char == " " and not in_quote then
+      if current ~= "" then
+        table.insert(args, current)
+        current = ""
       end
+    else
+      current = current .. char
     end
+  end
+  if current ~= "" then
+    table.insert(args, current)
+  end
+  return args
+end
+
+-- Helper function to run llm and get output
+function M.run_llm(input, args_str, bufnr, out_win)
+  local cmd = { M.config.llm_path }
+  local args_list = split_args(args_str or "")
+  for _, arg in ipairs(args_list) do
+    table.insert(cmd, arg)
   end
 
   local comment_line = "<!-- " .. table.concat(cmd, " ") .. " -->"
   vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { comment_line })
-
-  table.insert(cmd, input)
 
   local accumulated_output = {}
   local function update_buffer(output_lines, is_complete)
@@ -107,7 +122,8 @@ function M.run_llm(input, options, bufnr, out_win)
     end
   end
 
-  local job_id = vim.system(cmd, {
+  local job = vim.system(cmd, {
+    stdin = input,
     text = true,
     stdout = function(err, data)
       vim.schedule(function()
@@ -119,17 +135,13 @@ function M.run_llm(input, options, bufnr, out_win)
         end
         if data then
           local chunks = vim.split(data, "\n", { plain = true, trimempty = false })
-
-          -- Handle partial lines by appending to the last element
           if #accumulated_output > 0 and #chunks > 0 then
             accumulated_output[#accumulated_output] = accumulated_output[#accumulated_output] .. chunks[1]
             table.remove(chunks, 1)
           end
-
           for _, chunk in ipairs(chunks) do
             table.insert(accumulated_output, chunk)
           end
-
           update_buffer(accumulated_output, false)
         end
       end)
@@ -147,25 +159,24 @@ function M.run_llm(input, options, bufnr, out_win)
         end
       end)
     end,
-    on_exit = function(j_id, code, event)
+    on_exit = function(code, signal)
       vim.schedule(function()
         if not vim.api.nvim_buf_is_valid(bufnr) then return end
         if code ~= 0 then
           vim.notify("llm exited with code " .. code, vim.log.levels.WARN)
         end
         update_buffer(accumulated_output, true)
-        running_jobs[bufnr] = nil
       end)
     end
   })
 
-  if not job_id or job_id == 0 or job_id == -1 then
+  if not job then
     vim.notify("Failed to start llm process. Command: " .. table.concat(cmd, " "), vim.log.levels.ERROR)
     return nil
   end
 
-  running_jobs[bufnr] = job_id
-  return job_id
+  running_jobs[bufnr] = job.pid
+  return job
 end
 
 -- Get the current visual selection
@@ -180,7 +191,6 @@ local function get_visual_selection()
   local end_line, end_col = end_pos[2], end_pos[3]
 
   local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
-
   if #lines == 0 then
     return nil, "Selected lines could not be retrieved."
   end
@@ -222,8 +232,8 @@ local function get_range_text(start_line, end_line)
   return table.concat(lines, "\n"), nil
 end
 
--- Core function to process text, display output, and handle streaming
-local function process_text(text, options)
+-- Core function to process text
+local function process_text(text, args_str)
   if not text or text == "" then
     vim.notify("No text provided to process.", vim.log.levels.WARN)
     return
@@ -231,9 +241,9 @@ local function process_text(text, options)
 
   local buf, out_win = create_scratch_buffer()
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Requesting response from LLM..." })
-  local job_id = M.run_llm(text, options or {}, buf, out_win)
+  local job = M.run_llm(text, args_str, buf, out_win)
 
-  if not job_id then
+  if not job then
     if vim.api.nvim_buf_is_valid(buf) then
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Error: Could not start LLM process." })
       vim.api.nvim_buf_set_option(buf, 'modified', true)
@@ -241,8 +251,8 @@ local function process_text(text, options)
   end
 end
 
--- Public function to query with visual selection
-function M.query_selection(options)
+-- Query with visual selection
+function M.query_selection(args_str)
   local text, err = get_visual_selection()
   if err then
     vim.notify(err, vim.log.levels.ERROR)
@@ -252,11 +262,11 @@ function M.query_selection(options)
     vim.notify("No text selected or selection is empty.", vim.log.levels.WARN)
     return
   end
-  process_text(text, options)
+  process_text(text, args_str)
 end
 
--- Public function to query with a line range
-function M.query_range(start_line, end_line, options)
+-- Query with a line range
+function M.query_range(start_line, end_line, args_str)
   local text, err = get_range_text(start_line, end_line)
   if err then
     vim.notify(err, vim.log.levels.ERROR)
@@ -266,105 +276,27 @@ function M.query_range(start_line, end_line, options)
     vim.notify("No text in selected range.", vim.log.levels.WARN)
     return
   end
-  process_text(text, options)
+  process_text(text, args_str)
 end
 
--- Parse command line arguments into options table
-function M.parse_args(args_str)
-  local options = {}
-
-  -- Split by spaces, respecting quoted strings
-  local parts = {}
-  local in_quotes = false
-  local current = ""
-  local quote_char = nil
-
-  for i = 1, #args_str do
-    local char = args_str:sub(i, i)
-
-    if (char == '"' or char == "'") and (i == 1 or args_str:sub(i - 1, i - 1) ~= "\\") then
-      if not in_quotes then
-        in_quotes = true
-        quote_char = char
-      elseif quote_char == char then
-        in_quotes = false
-        quote_char = nil
-      else
-        current = current .. char
-      end
-    elseif char == " " and not in_quotes then
-      if current ~= "" then
-        table.insert(parts, current)
-        current = ""
-      end
-    else
-      current = current .. char
-    end
-  end
-
-  if current ~= "" then
-    table.insert(parts, current)
-  end
-
-  local i = 1
-  while i <= #parts do
-    local part = parts[i]
-
-    if part:sub(1, 2) == "--" then
-      local key = part:sub(3)
-
-      local equals_pos = key:find("=")
-      if equals_pos then
-        local value = key:sub(equals_pos + 1)
-        key = key:sub(1, equals_pos - 1)
-        options[key] = value
-      elseif i < #parts and parts[i + 1]:sub(1, 2) ~= "--" then
-        options[key] = parts[i + 1]
-        i = i + 1
-      else
-        options[key] = true
-      end
-    else
-      table.insert(options, part)
-    end
-
-    i = i + 1
-  end
-
-  return options
-end
-
--- Update handle_command to accept and process args
-function M.handle_command(line1, line2, mode, args)
-  local options = M.parse_args(args or "")
-
+-- Command handler
+function M.handle_command(line1, line2, mode, args_str)
   if mode == 'v' or mode == 'V' or mode == '\22' then
-    M.query_selection(options)
+    M.query_selection(args_str)
   else
-    M.query_range(line1, line2, options)
+    M.query_range(line1, line2, args_str)
   end
 end
 
--- Function to show llm logs in a scratch buffer
-function M.show_logs(options)
-  options = options or {}
-
+-- Show llm logs in a scratch buffer
+function M.show_logs(args_str)
   local buf, out_win = create_scratch_buffer()
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Loading LLM logs..." })
 
+  local args_list = split_args(args_str or "")
   local cmd = { M.config.llm_path, "logs" }
-
-  for k, v in pairs(options) do
-    if type(k) == "number" then
-      table.insert(cmd, tostring(v))
-    else
-      if v == true then
-        table.insert(cmd, "--" .. k)
-      elseif v ~= false then
-        table.insert(cmd, "--" .. k)
-        table.insert(cmd, tostring(v))
-      end
-    end
+  for _, arg in ipairs(args_list) do
+    table.insert(cmd, arg)
   end
 
   local first_update = true
@@ -381,7 +313,6 @@ function M.show_logs(options)
     end
 
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, output_lines)
-
     local line_count = vim.api.nvim_buf_line_count(buf)
     pcall(vim.api.nvim_win_set_cursor, out_win, { line_count, 0 })
 
@@ -391,7 +322,7 @@ function M.show_logs(options)
   end
 
   local accumulated_output = {}
-  local job_id = vim.system(cmd, {
+  local job = vim.system(cmd, {
     text = true,
     stdout = function(err, data)
       vim.schedule(function()
@@ -402,16 +333,13 @@ function M.show_logs(options)
         end
         if data then
           local chunks = vim.split(data, "\n", { plain = true, trimempty = false })
-
           if #accumulated_output > 0 and #chunks > 0 then
             accumulated_output[#accumulated_output] = accumulated_output[#accumulated_output] .. chunks[1]
             table.remove(chunks, 1)
           end
-
           for _, chunk in ipairs(chunks) do
             table.insert(accumulated_output, chunk)
           end
-
           update_buffer(accumulated_output, false)
         end
       end)
@@ -428,7 +356,7 @@ function M.show_logs(options)
         end
       end)
     end,
-    on_exit = function(j_id, code, event)
+    on_exit = function(code, signal)
       vim.schedule(function()
         if not vim.api.nvim_buf_is_valid(buf) then return end
         if code ~= 0 then
@@ -439,7 +367,7 @@ function M.show_logs(options)
     end
   })
 
-  if not job_id or job_id == 0 or job_id == -1 then
+  if not job then
     vim.notify("Failed to start llm logs process. Command: " .. table.concat(cmd, " "), vim.log.levels.ERROR)
     if vim.api.nvim_buf_is_valid(buf) then
       vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Error: Could not start llm logs process." })
@@ -448,10 +376,9 @@ function M.show_logs(options)
   end
 end
 
--- Command handler for the logs command
-function M.handle_logs_command(args)
-  local options = M.parse_args(args or "")
-  M.show_logs(options)
+-- Logs command handler
+function M.handle_logs_command(args_str)
+  M.show_logs(args_str)
 end
 
 return M
