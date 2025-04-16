@@ -52,71 +52,61 @@ local function create_scratch_buffer()
   return buf, new_win
 end
 
+-- Function to stop a running job
+function M.stop_job(bufnr)
+  local job_id = running_jobs[bufnr]
+  if job_id then
+    vim.system({ 'kill', tostring(job_id) })
+    running_jobs[bufnr] = nil
+  end
+end
+
 -- Helper function to run llm and get output
 -- Returns job_id or nil on immediate error
 function M.run_llm(input, options, bufnr, out_win)
   options = options or {}
 
-  local first_update = true
+  local cmd = { M.config.llm_path }
+
+  local merged_options = vim.tbl_deep_extend("force", {}, options)
+  for k, v in pairs(merged_options) do
+    if type(k) == "number" then
+      table.insert(cmd, tostring(v))
+    else
+      if v == true then
+        table.insert(cmd, "--" .. k)
+      elseif v ~= false then
+        table.insert(cmd, "--" .. k)
+        table.insert(cmd, tostring(v))
+      end
+    end
+  end
+
+  local comment_line = "<!-- " .. table.concat(cmd, " ") .. " -->"
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { comment_line })
+
+  table.insert(cmd, input)
+
+  local accumulated_output = {}
   local function update_buffer(output_lines, is_complete)
     if not vim.api.nvim_buf_is_valid(bufnr) then
       M.stop_job(bufnr)
       return
     end
 
-    if first_update then
-      if #output_lines > 0 or is_complete then
-        vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {})
-        first_update = false
-      end
-    end
+    -- Set output lines starting from line 1, preserving the comment at line 0
+    vim.api.nvim_buf_set_lines(bufnr, 1, -1, false, output_lines)
 
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, output_lines)
-
-    -- Keep cursor at the end of the buffer for streaming effect
+    -- Keep cursor at the end for streaming effect
     local line_count = vim.api.nvim_buf_line_count(bufnr)
     pcall(vim.api.nvim_win_set_cursor, out_win, { line_count, 0 })
 
-    -- Mark as modified when complete to encourage saving
     if is_complete then
       vim.api.nvim_buf_set_option(bufnr, 'modified', true)
       running_jobs[bufnr] = nil
     end
   end
 
-  local cmd = { M.config.llm_path }
-
-  local model = options.model
-  if model then
-    table.insert(cmd, "--model")
-    table.insert(cmd, model)
-  end
-
-  local system = options.system
-  if system then
-    table.insert(cmd, "--system")
-    table.insert(cmd, system)
-  end
-
-  local merged_options = vim.tbl_deep_extend("force", {}, options)
-  for k, v in pairs(merged_options) do
-    if k ~= "model" and k ~= "system" then
-      if type(k) == "number" then
-        table.insert(cmd, tostring(v))
-      else
-        if v == true then
-          table.insert(cmd, "--" .. k)
-        elseif v ~= false then
-          table.insert(cmd, "--" .. k)
-          table.insert(cmd, tostring(v))
-        end
-      end
-    end
-  end
-
-  table.insert(cmd, input)
-
-  local accumulated_output = {}
   local job_id = vim.system(cmd, {
     text = true,
     stdout = function(err, data)
@@ -130,7 +120,7 @@ function M.run_llm(input, options, bufnr, out_win)
         if data then
           local chunks = vim.split(data, "\n", { plain = true, trimempty = false })
 
-          -- Append the first chunk to the last element if it exists and last element doesn't end with newline
+          -- Handle partial lines by appending to the last element
           if #accumulated_output > 0 and #chunks > 0 then
             accumulated_output[#accumulated_output] = accumulated_output[#accumulated_output] .. chunks[1]
             table.remove(chunks, 1)
@@ -176,15 +166,6 @@ function M.run_llm(input, options, bufnr, out_win)
 
   running_jobs[bufnr] = job_id
   return job_id
-end
-
--- Function to stop a running job
-function M.stop_job(bufnr)
-  local job_id = running_jobs[bufnr]
-  if job_id then
-    vim.system({ 'kill', tostring(job_id) })
-    running_jobs[bufnr] = nil
-  end
 end
 
 -- Get the current visual selection
