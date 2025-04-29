@@ -112,9 +112,6 @@ function M.run_llm(input, args_str, bufnr, out_win)
     -- Set output lines starting from line 1, preserving the comment at line 0
     vim.api.nvim_buf_set_lines(bufnr, 1, -1, false, output_lines)
 
-    -- Keep cursor at the end for streaming effect
-    local line_count = vim.api.nvim_buf_line_count(bufnr)
-    pcall(vim.api.nvim_win_set_cursor, out_win, { line_count, 0 })
 
     if is_complete then
       vim.api.nvim_buf_set_option(bufnr, 'modified', true)
@@ -339,8 +336,6 @@ function M.show_logs(args_str)
     end
 
     vim.api.nvim_buf_set_lines(buf, 0, -1, false, output_lines)
-    local line_count = vim.api.nvim_buf_line_count(buf)
-    pcall(vim.api.nvim_win_set_cursor, out_win, { line_count, 0 })
 
     if is_complete then
       vim.api.nvim_buf_set_option(buf, 'modified', true)
