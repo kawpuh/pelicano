@@ -2,6 +2,44 @@ local M = {}
 local last_save_times = {}
 local debounce_ms = 1000 -- 1 second debounce - adjust as needed
 
+-- Function to add a name to a file
+function M.add_name_to_file(name)
+  -- Get the current buffer filename
+  local current_file = vim.api.nvim_buf_get_name(0)
+
+  -- Get the file extension (if any)
+  local ext = ""
+  local basename = current_file
+
+  -- Find the last period in the filename (to separate extension)
+  local last_dot = current_file:match(".*%.(.*)")
+  if last_dot then
+    ext = "." .. last_dot
+    basename = current_file:sub(1, -(#ext + 1))
+  end
+
+  -- Create the new filename with the name added
+  local new_file = basename .. " " .. name .. ext
+
+  -- Save the current buffer (if modified)
+  if vim.bo.modified then
+    vim.cmd("silent! write")
+  end
+
+  -- Rename the file
+  local success, err = os.rename(current_file, new_file)
+  if not success then
+    vim.notify("Failed to rename file: " .. (err or "unknown error"), vim.log.levels.ERROR)
+    return
+  end
+
+  -- Update the buffer to point to the new file
+  vim.cmd("file " .. vim.fn.fnameescape(new_file))
+
+  -- Ensure the buffer is associated with the new filename
+  vim.cmd("edit " .. vim.fn.fnameescape(new_file))
+end
+
 local function save_scratch_file(args)
   local bufnr = args.buf
   local current_time = vim.loop.now()
