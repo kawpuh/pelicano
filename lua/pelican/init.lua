@@ -275,6 +275,15 @@ local function process_text(text, args_str)
     return
   end
 
+  -- Check if current buffer is a scratch buffer that needs 'prompt' added to filename
+  local file_path = vim.api.nvim_buf_get_name(0)
+  local scratch_dir = vim.fn.expand('~/.local/share/nvim/scratch')
+
+  -- If this is a scratch file and doesn't have 'prompt' in the name, add it
+  if file_path:find(scratch_dir, 1, true) and not file_path:find("prompt", 1, true) then
+    require('pelican.scratch').add_name_to_file("prompt")
+  end
+
   local buf, out_win = create_scratch_buffer()
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Requesting response from LLM..." })
   local job = M.run_llm(text, args_str, buf, out_win)
