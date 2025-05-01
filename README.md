@@ -30,6 +30,7 @@ require('pelican').setup({
 - `:Scratch` - Create a new Markdown scratch file with a timestamp based name.
 - `:OpenLatestScratch` - Open last modified file in scratch folder.
 - `:ScratchAddName [name]` - Add a name to the current file. For example, it converts `2023-04-29_15-30-45.md` to `2023-04-29_15-30-45 [name].md`. Works with any file type.
+- `:ScratchBranch` - Copy current buffer to a new scratch buffer. If the original filename follows the expected timestamp format with a name (e.g., `2023-04-29_15-30-45 prompt.md`), the name will be preserved in the new scratch file.
 - `:LLM` - Call LLM with the current buffer or range as input. Streams output to a new scratch buffer (first in a vertical split window, then subsequent calls will horizontal split off the first). Can also take command line args as expected. e.g. `:LLM -m claude-3.7-sonnet`. Will also add a markdown comment to the first line of the buffer showing this invocation. Note that single quotes should be used for string args, not double quotes.
 - `:LLMSelection` - Like LLM command, but passes current visual selection as input.
 - `:LLMLogs` - Outputs the result of `llm logs` to a new scratch buffer. Also takes command line args as expected e.g. `:LLMLogs -r`
