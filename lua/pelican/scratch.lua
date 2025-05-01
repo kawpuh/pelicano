@@ -270,4 +270,50 @@ function M.select_within_code_block()
     end
 end
 
+-- Function to extract name from filename
+local function extract_name_from_filename(filename)
+  -- Check if filename follows the expected format of <timestamp><maybe name>.md
+  local basename = vim.fn.fnamemodify(filename, ":t:r") -- Get filename without extension and path
+
+  -- Check if the basename starts with a timestamp pattern (YYYY-MM-DD_HH-MM-SS)
+  local timestamp_pattern = "^%d%d%d%d%-%d%d%-%d%d_%d%d%-%d%d%-%d%d"
+
+  -- If there's a timestamp, check if there's additional text after it
+  if basename:match(timestamp_pattern) then
+    local timestamp_end = basename:match(timestamp_pattern .. "()")
+
+    -- If there's text after the timestamp, extract it (skip any spaces)
+    if timestamp_end and timestamp_end <= #basename then
+      local name = basename:sub(timestamp_end):match("^ +(.*)")
+      return name
+    end
+  end
+
+  return nil
+end
+
+-- Function to create a scratch branch from current buffer
+function M.scratch_branch()
+  -- Get current buffer content
+  local lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
+  local current_file = vim.api.nvim_buf_get_name(0)
+
+  -- Create a new scratch file
+  M.create_scratch_file()
+
+  -- Get the new buffer
+  local new_bufnr = vim.api.nvim_get_current_buf()
+
+  -- Set the content from the original buffer
+  vim.api.nvim_buf_set_lines(new_bufnr, 0, -1, false, lines)
+
+  -- Check if the original file follows the timestamp format and has a name
+  local name = extract_name_from_filename(current_file)
+
+  -- If a name is found, call ScratchAddName
+  if name then
+    M.add_name_to_file(name)
+  end
+end
+
 return M
