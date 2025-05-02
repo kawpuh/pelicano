@@ -333,6 +333,15 @@ function M.show_logs(args_str)
   local buf, out_win = create_scratch_buffer()
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Loading LLM logs..." })
 
+  -- Mark the created scratch buffer as logs
+  vim.api.nvim_buf_call(buf, function()
+    local name = "logs"
+    if args_str and args_str ~= "" then
+      name = name .. " " .. args_str
+    end
+    scratch.add_name_to_file(name)
+  end)
+
   local args_list = split_args(args_str or "")
   local cmd = { M.config.llm_path, "logs" }
   for _, arg in ipairs(args_list) do
