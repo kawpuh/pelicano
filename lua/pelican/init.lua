@@ -176,84 +176,6 @@ function M.run_llm(input, args_str, bufnr, out_win)
   return job
 end
 
--- Get the current visual selection
-local function get_visual_selection()
-  local start_pos = vim.fn.getpos("'<")
-  local end_pos = vim.fn.getpos("'>")
-  if start_pos[2] == 0 or end_pos[2] == 0 or (start_pos[2] == end_pos[2] and start_pos[3] == end_pos[3]) then
-    return nil, "No visual selection detected or selection is empty."
-  end
-
-  local start_line, start_col = start_pos[2], start_pos[3]
-  local end_line, end_col = end_pos[2], end_pos[3]
-
-  local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
-  if #lines == 0 then
-    return nil, "Selected lines could not be retrieved."
-  end
-
-  local mode = vim.fn.visualmode()
-  if mode == "V" then
-      return table.concat(lines, "\n"), nil
-  elseif mode == "v" then
-      if #lines == 1 then
-          local line_text = lines[1]
-          local byte_start = vim.fn.byteidx(line_text, start_col - 1)
-          local byte_end = vim.fn.byteidx(line_text, end_col - 1)
-          if byte_start > byte_end then byte_start, byte_end = byte_end, byte_start end
-          return string.sub(line_text, byte_start + 1, byte_end + 1), nil
-      else
-          local first_line = lines[1]
-          local byte_start = vim.fn.byteidx(first_line, start_col - 1)
-          lines[1] = string.sub(first_line, byte_start + 1)
-
-          local last_line = lines[#lines]
-          local byte_end = vim.fn.byteidx(last_line, end_col - 1)
-          lines[#lines] = string.sub(last_line, 1, byte_end + 1)
-          return table.concat(lines, "\n"), nil
-      end
-  elseif mode == "\22" then
-      local selected_texts = {}
-      local start_vcol = vim.fn.virtcol("'<")
-      local end_vcol = vim.fn.virtcol("'>")
-      if start_vcol > end_vcol then start_vcol, end_vcol = end_vcol, start_vcol end
-
-      for _, line in ipairs(lines) do
-         local vcol_start_byte = vim.fn.strdisplaywidth(line:sub(1, vim.fn.byteidx(line, start_vcol - 1)))
-         local vcol_end_byte = vim.fn.byteidx(line, end_vcol-1)
-
-         local start_byte = nil
-         local end_byte = nil
-         local current_vcol = 0
-         for i = 1, #line do
-             local char_width = vim.fn.strdisplaywidth(line:sub(i,i))
-             if start_byte == nil and current_vcol + char_width >= start_vcol then
-                 start_byte = i
-             end
-             if end_byte == nil and current_vcol + char_width >= end_vcol then
-                 end_byte = i
-                 break
-             end
-             current_vcol = current_vcol + char_width
-             if i == #line and end_byte == nil then
-                 end_byte = i
-             end
-         end
-
-         if start_byte and end_byte then
-            table.insert(selected_texts, string.sub(line, start_byte, end_byte))
-         elseif start_byte then
-             table.insert(selected_texts, string.sub(line, start_byte))
-         else
-             table.insert(selected_texts, "")
-         end
-      end
-      return table.concat(selected_texts, "\n"), nil
-  else
-      return nil, "Unhandled visual mode: " .. mode
-  end
-end
-
 -- Get text from a given line range
 local function get_range_text(start_line, end_line)
   local line_count = vim.api.nvim_buf_line_count(0)
@@ -302,16 +224,6 @@ local function process_text(text, args_str)
       vim.api.nvim_buf_set_option(buf, 'modified', true)
     end
   end
-end
-
--- Query with visual selection
-function M.query_selection(args_str)
-  local text, err = get_visual_selection()
-  if err then
-    vim.notify(err, vim.log.levels.ERROR)
-    return
-  end
-  process_text(text, args_str)
 end
 
 -- Query with a line range

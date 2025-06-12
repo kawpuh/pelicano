@@ -32,7 +32,6 @@ require('pelican').setup({
 - `:ScratchAddName [name]` - Add a name to the current file. For example, it converts `2023-04-29_15-30-45.md` to `2023-04-29_15-30-45 [name].md`. Works with any file type.
 - `:ScratchBranch` - Copy current buffer to a new scratch buffer. If the original filename follows the expected timestamp format with a name (e.g., `2023-04-29_15-30-45 prompt.md`), the name will be preserved in the new scratch file.
 - `:LLM` - Call LLM with the current buffer or range as input. Streams output to a new scratch buffer (first in a vertical split window, then subsequent calls will horizontal split off the first). Can also take command line args as expected. e.g. `:LLM -m claude-3.7-sonnet`. Will also add a markdown comment to the first line of the buffer showing this invocation. Note that single quotes should be used for string args, not double quotes. Automatically calls ScratchAddName on the prompt (if 'prompt' isn't already in the filename) and response buffers.
-- `:LLMSelection` - Like LLM command, but passes current visual selection as input.
 - `:LLMLogs` - Outputs the result of `llm logs` to a new scratch buffer. Also takes command line args as expected e.g. `:LLMLogs -r`
 - `:YankCodeBlock` - Yank buffer/selection as Markdown code block (wrapped in backticks and labelled with language/filetype).
 - `:SelectCodeBlock` - If the cursor is within a Markdown code block, visually select the content of the code block.
@@ -60,7 +59,6 @@ augroup PelicanMarkdown
     au FileType markdown nnoremap <buffer> <C-i> :SelectCodeBlock<CR>y
     " send buffer/visual selection to sonnet 3.7 thinking
     au FileType markdown nnoremap <buffer> <C-g> :LLM -m claude-3.7-sonnet -o thinking_budget 32000<CR>
-    au FileType markdown vnoremap <buffer> <C-g> :LLMSelection -m claude-3.7-sonnet -o thinking_budget 32000<CR>
 augroup end
 ```
 
