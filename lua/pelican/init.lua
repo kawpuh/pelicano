@@ -176,6 +176,91 @@ function M.run_llm(input, args_str, bufnr, out_win)
   return job
 end
 
+-- Variant of run_llm where the user provides the entire command instead of just cmd args
+function M.run_llm_with_full_command(input, full_command, bufnr, out_win)
+  local cmd = split_args(full_command or "")
+  
+  if #cmd == 0 then
+    vim.notify("No command provided", vim.log.levels.ERROR)
+    return nil
+  end
+
+  local comment_line = "<!-- " .. table.concat(cmd, " ") .. " -->"
+  vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { comment_line })
+
+  local accumulated_output = {}
+  local function update_buffer(output_lines, is_complete)
+    if not vim.api.nvim_buf_is_valid(bufnr) then
+      M.stop_job(bufnr)
+      return
+    end
+
+    -- Set output lines starting from line 1, preserving the comment at line 0
+    vim.api.nvim_buf_set_lines(bufnr, 1, -1, false, output_lines)
+
+    if is_complete then
+      vim.api.nvim_buf_set_option(bufnr, 'modified', true)
+      running_jobs[bufnr] = nil
+    end
+  end
+
+  local job = vim.system(cmd, {
+    stdin = input,
+    text = true,
+    stdout = function(err, data)
+      vim.schedule(function()
+        if not vim.api.nvim_buf_is_valid(bufnr) then return end
+        if err then
+          vim.notify("Error reading command stdout: " .. vim.inspect(err), vim.log.levels.ERROR)
+          M.stop_job(bufnr)
+          return
+        end
+        if data then
+          local chunks = vim.split(data, "\n", { plain = true, trimempty = false })
+          if #accumulated_output > 0 and #chunks > 0 then
+            accumulated_output[#accumulated_output] = accumulated_output[#accumulated_output] .. chunks[1]
+            table.remove(chunks, 1)
+          end
+          for _, chunk in ipairs(chunks) do
+            table.insert(accumulated_output, chunk)
+          end
+          update_buffer(accumulated_output, false)
+        end
+      end)
+    end,
+    stderr = function(err, data)
+      vim.schedule(function()
+        if not vim.api.nvim_buf_is_valid(bufnr) then return end
+        if err then
+          vim.notify("Error reading command stderr: " .. vim.inspect(err), vim.log.levels.ERROR)
+          M.stop_job(bufnr)
+          return
+        end
+        if data and data ~= "" then
+          vim.notify("Command stderr: " .. data, vim.log.levels.WARN)
+        end
+      end)
+    end,
+    on_exit = function(code, signal)
+      vim.schedule(function()
+        if not vim.api.nvim_buf_is_valid(bufnr) then return end
+        if code ~= 0 then
+          vim.notify("Command exited with code " .. code, vim.log.levels.WARN)
+        end
+        update_buffer(accumulated_output, true)
+      end)
+    end
+  })
+
+  if not job then
+    vim.notify("Failed to start process. Command: " .. table.concat(cmd, " "), vim.log.levels.ERROR)
+    return nil
+  end
+
+  running_jobs[bufnr] = job.pid
+  return job
+end
+
 -- Get text from a given line range
 local function get_range_text(start_line, end_line)
   local line_count = vim.api.nvim_buf_line_count(0)
@@ -238,6 +323,61 @@ function M.query_range(start_line, end_line, args_str)
     return
   end
   process_text(text, args_str)
+end
+
+-- Core function to process text with a full command
+local function process_text_with_full_command(text, full_command)
+  if not text or text == "" then
+    vim.notify("No text provided to process.", vim.log.levels.WARN)
+    return
+  end
+
+  if not full_command or full_command == "" then
+    vim.notify("No command provided.", vim.log.levels.WARN)
+    return
+  end
+
+  -- Check if current buffer is a scratch buffer that needs 'prompt' added to filename
+  local file_path = vim.api.nvim_buf_get_name(0)
+  local scratch_dir = vim.fn.expand('~/.local/share/nvim/scratch')
+
+  -- If this is a scratch file and doesn't have 'prompt' in the name, add it
+  if file_path:find(scratch_dir, 1, true) and not file_path:find("prompt", 1, true) then
+    scratch.add_name_to_file("prompt")
+  end
+
+  local buf, out_win = create_scratch_buffer()
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Requesting response from command..." })
+  -- Mark the created scratch buffer as a response
+  vim.api.nvim_buf_call(buf, function()
+    local name = "response"
+    if full_command and full_command ~= "" then
+      name = name .. " " .. full_command
+    end
+    scratch.add_name_to_file(name)
+  end)
+  local job = M.run_llm_with_full_command(text, full_command, buf, out_win)
+
+  if not job then
+    if vim.api.nvim_buf_is_valid(buf) then
+      vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Error: Could not start command process." })
+      vim.api.nvim_buf_set_option(buf, 'modified', true)
+    end
+  end
+end
+
+-- Query with a line range using full command
+function M.query_range_with_full_command(start_line, end_line, full_command)
+  local text, err = get_range_text(start_line, end_line)
+  if err then
+    vim.notify(err, vim.log.levels.ERROR)
+    return
+  end
+  if not text then
+    vim.notify("No text in selected range.", vim.log.levels.WARN)
+    return
+  end
+  process_text_with_full_command(text, full_command)
 end
 
 -- Show llm logs in a scratch buffer
