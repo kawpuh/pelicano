@@ -2,7 +2,7 @@
 
 A Neovim plugin for interacting with [Simon Willison's LLM CLI tool](https://github.com/simonw/llm).
 
-WARNING: May or may not bother to keep docs updated, but all of the functionality is exposed as commands in [pelican.vim] 
+WARNING: May or may not bother to keep docs updated, but all of the functionality is exposed as commands in [pelican.vim](https://github.com/kawpuh/pelican/blob/master/plugin/pelican.vim)
 
 ## Demo
 
