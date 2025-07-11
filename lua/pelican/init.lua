@@ -110,7 +110,7 @@ local function run_command(cmd, bufnr, options)
     end
   end
 
-  local job = vim.system(cmd, {
+  local success, job = pcall(vim.system, cmd, {
     stdin = input,
     text = true,
     stdout = function(err, data)
@@ -143,7 +143,10 @@ local function run_command(cmd, bufnr, options)
           return
         end
         if data and data ~= "" then
-          vim.notify("Command stderr: " .. data, vim.log.levels.WARN)
+          -- Update buffer with error message
+          local lines = vim.split(data, "\n")
+          vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, lines)
+          vim.api.nvim_buf_set_option(bufnr, 'modified', true)
         end
       end)
     end,
@@ -158,11 +161,16 @@ local function run_command(cmd, bufnr, options)
     end
   })
 
-  if not job then
-    vim.notify("Failed to start process. Command: " .. table.concat(cmd, " "), vim.log.levels.ERROR)
+  if not success or not job then
     if vim.api.nvim_buf_is_valid(bufnr) then
-      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "Error: Could not start process." })
+      vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, {
+        "Error: Could not start process.",
+        "Command: " .. table.concat(cmd, " "),
+        "",
+        "Please check that the command exists and is in your PATH."
+      })
       vim.api.nvim_buf_set_option(bufnr, 'modified', true)
+      running_jobs[bufnr] = nil
     end
     return
   end
