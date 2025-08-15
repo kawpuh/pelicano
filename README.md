@@ -43,8 +43,8 @@ Files in the scratch folder autosave with a 1 second debounce.
 ## Example Keymap
 
 ```vim
-nnoremap <leader>fn <cmd>Scratch<CR>
-nnoremap <leader>fp <cmd>OpenLatestScratch<CR>
+nnoremap <leader>fn :Scratch<CR>
+nnoremap <leader>fp :OpenLatestScratch<CR>
 noremap <leader>cn <Plug>PutCodeBlockNewScratch<CR>
 noremap <leader>cp <Plug>PutCodeBlockLatestScratch<CR>
 noremap <leader>cy <cmd>YankCodeBlock<CR>
