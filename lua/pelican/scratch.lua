@@ -2,6 +2,63 @@ local M = {}
 local last_save_times = {}
 local debounce_ms = 1000 -- 1 second debounce - adjust as needed
 
+-- Get text from visual selection (handles charwise, linewise, blockwise)
+function M.get_visual_selection()
+  local current_mode = vim.fn.mode()
+  local bufnr = 0  -- Current buffer
+  local lines
+
+  local is_visual = current_mode == 'v' or current_mode == 'V' or current_mode == '\22'
+  if not is_visual then
+    -- No visual selection: fallback to entire buffer
+    lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
+  else
+    local pos1 = vim.fn.getpos('v')
+    local pos2 = vim.fn.getpos('.')
+    local mode = current_mode
+
+    -- 0-based rows
+    local start_row, end_row
+    local start_col, end_col
+
+    if mode == 'V' then
+      -- Linewise: get whole lines
+      start_row = math.min(pos1[2], pos2[2]) - 1
+      end_row = math.max(pos1[2], pos2[2]) - 1
+      lines = vim.api.nvim_buf_get_lines(bufnr, start_row, end_row + 1, false)
+    elseif mode == 'v' then
+      -- Charwise: get exact text span
+      local start_pos, end_pos
+      if (pos1[2] < pos2[2]) or (pos1[2] == pos2[2] and pos1[3] < pos2[3]) then
+        start_pos = pos1
+        end_pos = pos2
+      else
+        start_pos = pos2
+        end_pos = pos1
+      end
+      start_row = start_pos[2] - 1
+      start_col = start_pos[3] - 1
+      end_row = end_pos[2] - 1
+      end_col = end_pos[3]  -- Exclusive
+      lines = vim.api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col, {})
+    elseif mode == '\22' then
+      -- Blockwise: get each line's portion
+      start_row = math.min(pos1[2], pos2[2]) - 1
+      end_row = math.max(pos1[2], pos2[2]) - 1
+      local left_col = math.min(pos1[3], pos2[3]) - 1
+      local right_col = math.max(pos1[3], pos2[3])  -- Exclusive
+      lines = {}
+      for row = start_row, end_row do
+        local line_part = vim.api.nvim_buf_get_text(bufnr, row, left_col, row, right_col, {})[1] or ""
+        table.insert(lines, line_part)
+      end
+    else
+      return nil, "Unknown visual mode"
+    end
+  end
+
+  return table.concat(lines, "\n"), nil
+end
 -- Function to add a name to a file
 function M.add_name_to_file(name)
   -- Get the current buffer filename
@@ -181,26 +238,19 @@ function M.open_latest_scratch()
   end
 end
 
--- yank -----------------------------------------------------------------------
--- Function to get text, format it, and yank it
-function M.yank_as_codeblock(opts)
-  -- opts contains information about the command invocation, including:
-  -- opts.line1: starting line number (1-based)
-  -- opts.line2: ending line number (1-based)
-  -- opts.range: number of items in the range (2 for visual line, 0 for %) -- less useful here
+function M.yank_as_codeblock()
+  local text_content, err = M.get_visual_selection()
 
-  -- Get the lines based on the provided range
-  -- nvim_buf_get_lines requires 0-based indexing and end line is exclusive
-  local lines = vim.api.nvim_buf_get_lines(0, opts.line1 - 1, opts.line2, false)
-
-  -- Check if we actually got any lines
-  if not lines or #lines == 0 then
-    vim.notify("No text selected or buffer is empty.", vim.log.levels.WARN)
+  if err then
+    vim.notify(err, vim.log.levels.WARN)
     return
   end
 
-  -- Join the lines back into a single string with newlines
-  local text_content = table.concat(lines, "\n")
+  -- Check if we actually got any text
+  if not text_content or text_content == "" then
+    vim.notify("No text selected or buffer is empty.", vim.log.levels.WARN)
+    return
+  end
 
   -- Get the filetype of the current buffer
   local filetype = vim.bo.filetype
@@ -211,19 +261,13 @@ function M.yank_as_codeblock(opts)
 
   -- Yank the formatted text to the default register (")
   vim.fn.setreg('"', formatted_text)
-  -- Optional: also set the system clipboard register (+) if you want
-  -- vim.fn.setreg('+', formatted_text)
 
   -- Notify the user
+  local lines = vim.split(text_content, "\n", { plain = true })
   local line_count = #lines
   local message = string.format("Yanked %d lines as '%s' code block", line_count,
     lang_tag ~= "" and lang_tag or "markdown")
-  -- Slightly shorten message if it gets too long (optional)
   vim.notify(message, vim.log.levels.INFO, { title = "YankCodeblock" })
-
-  -- Optional: Briefly highlight the yanked area (Neovim often does this automatically)
-  -- vim.cmd('normal! gv') -- Re-select visually
-  -- vim.highlight.on_yank({timeout = 200}) -- Trigger highlight manually if needed
 end
 
 function M.select_within_code_block()
