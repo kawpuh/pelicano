@@ -225,20 +225,6 @@ function M.run_llm_with_full_command(input, full_command)
 end
 
 
--- Get text from a given line range
-local function get_range_text(start_line, end_line)
-  local line_count = vim.api.nvim_buf_line_count(0)
-  start_line = math.max(1, start_line)
-  end_line = math.min(line_count, end_line)
-
-  if start_line > end_line then
-    return nil, "Invalid line range."
-  end
-
-  local lines = vim.api.nvim_buf_get_lines(0, start_line - 1, end_line, false)
-  return table.concat(lines, "\n"), nil
-end
-
 -- Core function to process text
 local function process_text(text, args_str)
   if not text or text == "" then
@@ -258,15 +244,11 @@ local function process_text(text, args_str)
   M.run_llm(text, args_str)
 end
 
--- Query with a line range
-function M.query_range(start_line, end_line, args_str)
-  local text, err = get_range_text(start_line, end_line)
+-- Query with visual selection
+function M.query_visual(args_str)
+  local text, err = scratch.get_visual_selection()
   if err then
     vim.notify(err, vim.log.levels.ERROR)
-    return
-  end
-  if not text then
-    vim.notify("No text in selected range.", vim.log.levels.WARN)
     return
   end
   process_text(text, args_str)
@@ -296,15 +278,11 @@ local function process_text_with_full_command(text, full_command)
   M.run_llm_with_full_command(text, full_command)
 end
 
--- Query with a line range using full command
-function M.query_range_with_full_command(start_line, end_line, full_command)
-  local text, err = get_range_text(start_line, end_line)
+-- Query with visual selection using full command
+function M.query_visual_with_full_command(full_command)
+  local text, err = scratch.get_visual_selection()
   if err then
     vim.notify(err, vim.log.levels.ERROR)
-    return
-  end
-  if not text then
-    vim.notify("No text in selected range.", vim.log.levels.WARN)
     return
   end
   process_text_with_full_command(text, full_command)
