@@ -4,32 +4,50 @@ local debounce_ms = 1000 -- 1 second debounce - adjust as needed
 
 -- Get text from visual selection (handles charwise, linewise, blockwise)
 function M.get_visual_selection()
-  local mode = vim.fn.visualmode()
-  local lines
+  local current_mode = vim.fn.mode()
   local bufnr = 0  -- Current buffer
+  local lines
 
-  if not mode or mode == '' then
+  local is_visual = current_mode == 'v' or current_mode == 'V' or current_mode == '\22'
+  if not is_visual then
     -- No visual selection: fallback to entire buffer
     lines = vim.api.nvim_buf_get_lines(bufnr, 0, -1, false)
   else
-    local start_pos = vim.fn.getpos("'<")
-    local end_pos = vim.fn.getpos("'>")
-    local start_row = start_pos[2] - 1
-    local start_col = start_pos[3] - 1
-    local end_row = end_pos[2] - 1
-    local end_col = end_pos[3]  -- Exclusive in API
+    local pos1 = vim.fn.getpos('v')
+    local pos2 = vim.fn.getpos('.')
+    local mode = current_mode
 
-    lines = {}
+    -- 0-based rows
+    local start_row, end_row
+    local start_col, end_col
+
     if mode == 'V' then
       -- Linewise: get whole lines
+      start_row = math.min(pos1[2], pos2[2]) - 1
+      end_row = math.max(pos1[2], pos2[2]) - 1
       lines = vim.api.nvim_buf_get_lines(bufnr, start_row, end_row + 1, false)
     elseif mode == 'v' then
       -- Charwise: get exact text span
+      local start_pos, end_pos
+      if (pos1[2] < pos2[2]) or (pos1[2] == pos2[2] and pos1[3] < pos2[3]) then
+        start_pos = pos1
+        end_pos = pos2
+      else
+        start_pos = pos2
+        end_pos = pos1
+      end
+      start_row = start_pos[2] - 1
+      start_col = start_pos[3] - 1
+      end_row = end_pos[2] - 1
+      end_col = end_pos[3]  -- Exclusive
       lines = vim.api.nvim_buf_get_text(bufnr, start_row, start_col, end_row, end_col, {})
     elseif mode == '\22' then
       -- Blockwise: get each line's portion
-      local left_col = math.min(start_pos[3], end_pos[3]) - 1
-      local right_col = math.max(start_pos[3], end_pos[3])  -- Exclusive
+      start_row = math.min(pos1[2], pos2[2]) - 1
+      end_row = math.max(pos1[2], pos2[2]) - 1
+      local left_col = math.min(pos1[3], pos2[3]) - 1
+      local right_col = math.max(pos1[3], pos2[3])  -- Exclusive
+      lines = {}
       for row = start_row, end_row do
         local line_part = vim.api.nvim_buf_get_text(bufnr, row, left_col, row, right_col, {})[1] or ""
         table.insert(lines, line_part)
@@ -41,7 +59,6 @@ function M.get_visual_selection()
 
   return table.concat(lines, "\n"), nil
 end
-
 -- Function to add a name to a file
 function M.add_name_to_file(name)
   -- Get the current buffer filename
