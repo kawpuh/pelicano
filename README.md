@@ -46,21 +46,23 @@ Files in the scratch folder autosave with a 1 second debounce.
 
 ```vim
 " Paste buffer/visual selection as code block in new scratch file
-noremap <leader>cn :YankCodeBlock<CR>:Scratch<CR>pGo<Esc>
+noremap <leader>cn :<c-u>YankCodeBlock<CR>:Scratch<CR>pGo<CR><Esc>
 " Paste buffer/visual selection as code block to end of latest scratch file
-noremap <leader>cp :YankCodeBlock<CR>:OpenLatestScratch<CR>Go<Esc>pGo<Esc>
-" Paste buffer/visual selection into last code block in latest scratch file.
-vnoremap <leader>ca y:OpenLatestScratch<CR>G:call search('^\s*```\s*$', 'b')<CR>P
-nnoremap <leader>ca :%y<CR>:OpenLatestScratch<CR>G:call search('^\s*```\s*$', 'b')<CR>P
+noremap <leader>cp :<c-u>YankCodeBlock<CR>:OpenLatestScratch<CR>Go<Esc>pGo<CR><Esc>
 " Open ex commandline ready to type cli flags for LLM
-nnoremap <leader>llm :LLM<space>
-vnoremap <leader>llm :LLMSelection<space>
+noremap <leader>llm :<c-u>LLM<space>
+" send buffer/visual selection to gpt-5-thinking-medium
+noremap <C-g> :<c-u>LLM -m gpt-5 -o reasoning_effort medium<CR>
+" open logs
+nnoremap <leader>lll :LLMLogs<CR>
+" open log of just the last response
+nnoremap <leader>llr :LLMLogs -r<CR>
+" send buffer/visual selection to claude code in print mode
+nnoremap<localleader>cc :<c-u>LLMCommand claude -p<CR>
 augroup PelicanMarkdown
     au!
-    " yank content of code block
-    au FileType markdown nnoremap <buffer> <C-i> :SelectCodeBlock<CR>y
-    " send buffer/visual selection to sonnet 3.7 thinking
-    au FileType markdown nnoremap <buffer> <C-g> :LLM -m claude-3.7-sonnet -o thinking_budget 32000<CR>
+    " yank content of code block to clipboard
+    au FileType markdown nnoremap <buffer> <C-m> :SelectCodeBlock<CR>"+y
 augroup end
 ```
 
