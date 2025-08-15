@@ -19,7 +19,7 @@ All of the functionality is exposed in [pelican.vim](https://github.com/kawpuh/p
 
 ### Commands
 
-Note: commands that interact with visual selection must be bound with the <cmd> pseudokey to function as expected.
+Note: commands that interact with visual selection must be bound with the `<cmd>` pseudokey to function as expected.
 
 - `:Scratch` - Create a new Markdown scratch file with a timestamp based name.
 - `:OpenLatestScratch` - Open last modified file in scratch folder.
