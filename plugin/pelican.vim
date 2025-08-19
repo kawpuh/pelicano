@@ -6,9 +6,9 @@ let g:loaded_pelican = 1
 lua require('pelican')
 
 command! -nargs=* LLM lua require('pelican').query_visual(<q-args>)
-command! -nargs=0 LLMPrompt lua require('pelican').query_visual(vim.fn.input('LLM Args: '))
+command! -nargs=0 LLMPrompt lua require('pelican').query_visual(vim.fn.input({prompt = 'LLM Args: ', cancelreturn = vim.NIL}))
 command! -nargs=+ LLMCommand lua require('pelican').query_visual_with_full_command(<q-args>)
-command! -nargs=0 LLMCommandPrompt lua require('pelican').query_visual_with_full_command(vim.fn.input('LLM Command: '))
+command! -nargs=0 LLMCommandPrompt lua require('pelican').query_visual_with_full_command(vim.fn.input({prompt = 'LLM Command: ', cancelreturn = vim.NIL}))
 command! -nargs=* LLMLogs lua require('pelican').show_logs(<q-args>)
 command! -nargs=0 Scratch lua require('pelican.scratch').create_scratch_file()
 command! -nargs=0 OpenLatestScratch lua require('pelican.scratch').open_latest_scratch()

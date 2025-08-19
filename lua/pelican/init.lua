@@ -244,8 +244,13 @@ local function process_text(text, args_str)
   M.run_llm(text, args_str)
 end
 
--- Query with visual selection
 function M.query_visual(args_str)
+  -- Abort if input was cancelled from prompt
+  if args_str == vim.NIL then
+    vim.notify('LLM prompt cancelled', vim.log.levels.INFO)
+    return
+  end
+
   local text, err = scratch.get_visual_selection()
   if err then
     vim.notify(err, vim.log.levels.ERROR)
@@ -278,8 +283,12 @@ local function process_text_with_full_command(text, full_command)
   M.run_llm_with_full_command(text, full_command)
 end
 
--- Query with visual selection using full command
 function M.query_visual_with_full_command(full_command)
+  -- Abort if input was cancelled from prompt
+  if full_command == vim.NIL then
+    vim.notify('LLM prompt cancelled', vim.log.levels.INFO)
+    return
+  end
   local text, err = scratch.get_visual_selection()
   if err then
     vim.notify(err, vim.log.levels.ERROR)
