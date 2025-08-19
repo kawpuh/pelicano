@@ -6,10 +6,8 @@ M.config = {
   llm_path = "llm",
 }
 
--- Keep track of running jobs associated with buffers
 local running_jobs = {}
 
--- Setup function to configure the plugin
 function M.setup(opts)
   opts = opts or {}
   M.config = vim.tbl_deep_extend("force", M.config, opts)
@@ -44,13 +42,11 @@ local function create_scratch_buffer()
   scratch.create_scratch_file()
   buf = vim.api.nvim_get_current_buf()
 
-  -- Return focus to the original window
   vim.api.nvim_set_current_win(original_win)
 
   return buf
 end
 
--- Function to stop a running job
 function M.stop_job(bufnr)
   local pid = running_jobs[bufnr]
   if pid then
@@ -59,7 +55,6 @@ function M.stop_job(bufnr)
   end
 end
 
--- Helper function to split argument string into a list
 local function split_args(args_str)
   local args = {}
   local in_quote = false
@@ -89,8 +84,6 @@ local function split_args(args_str)
   return args
 end
 
--- This function runs a command with given options and streams the output to a buffer.
--- It handles job control, stdout/stderr processing, and buffer updates.
 local function run_command(cmd, bufnr, options)
   options = options or {}
   local input = options.input
@@ -178,7 +171,22 @@ local function run_command(cmd, bufnr, options)
   running_jobs[bufnr] = job.pid
 end
 
--- Helper function to run llm and get output
+local function run_command_with_scratch(input, cmd, display_name)
+  local buf = create_scratch_buffer()
+  local bufnr = vim.api.nvim_buf_get_number(buf)
+  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Requesting response..." })
+
+  vim.api.nvim_buf_call(buf, function()
+    local name = "response"
+    if display_name and display_name ~= "" then
+      name = name .. " " .. display_name
+    end
+    scratch.add_name_to_file(name)
+  end)
+
+  run_command(cmd, bufnr, { input = input })
+end
+
 function M.run_llm(input, args_str)
   local cmd = { M.config.llm_path }
   local args_list = split_args(args_str or "")
@@ -186,19 +194,7 @@ function M.run_llm(input, args_str)
     table.insert(cmd, arg)
   end
 
-  local buf = create_scratch_buffer()
-  local bufnr = vim.api.nvim_buf_get_number(buf)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Requesting response from LLM..." })
-  -- Mark the created scratch buffer as a response
-  vim.api.nvim_buf_call(buf, function()
-    local name = "response"
-    if args_str and args_str ~= "" then
-      name = name .. " " .. args_str
-    end
-    scratch.add_name_to_file(name)
-  end)
-
-  run_command(cmd, bufnr, { input = input })
+  run_command_with_scratch(input, cmd, args_str)
 end
 
 function M.run_llm_with_full_command(input, full_command)
@@ -209,101 +205,68 @@ function M.run_llm_with_full_command(input, full_command)
     return
   end
 
-  local buf = create_scratch_buffer()
-  local bufnr = vim.api.nvim_buf_get_number(buf)
-  vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Requesting response from command..." })
-  -- Mark the created scratch buffer as a response
-  vim.api.nvim_buf_call(buf, function()
-    local name = "response"
-    if full_command and full_command ~= "" then
-      name = name .. " " .. full_command
-    end
-    scratch.add_name_to_file(name)
-  end)
-
-  run_command(cmd, bufnr, { input = input })
+  run_command_with_scratch(input, cmd, full_command)
 end
 
 
--- Core function to process text
-local function process_text(text, args_str)
+local function process_text_common(text, run_func, command_arg)
   if not text or text == "" then
     vim.notify("No text provided to process.", vim.log.levels.WARN)
     return
   end
 
-  -- Check if current buffer is a scratch buffer that needs 'prompt' added to filename
   local file_path = vim.api.nvim_buf_get_name(0)
   local scratch_dir = vim.fn.expand('~/.local/share/nvim/scratch')
 
-  -- If this is a scratch file and doesn't have 'prompt' in the name, add it
   if file_path:find(scratch_dir, 1, true) and not file_path:find("prompt", 1, true) then
     scratch.add_name_to_file("prompt")
   end
 
-  M.run_llm(text, args_str)
+  run_func(text, command_arg)
 end
 
-function M.query_visual(args_str)
-  -- Abort if input was cancelled from prompt
-  if args_str == vim.NIL then
-    vim.notify('LLM prompt cancelled', vim.log.levels.INFO)
-    return
-  end
-
-  local text, err = scratch.get_visual_selection()
-  if err then
-    vim.notify(err, vim.log.levels.ERROR)
-    return
-  end
-  process_text(text, args_str)
+local function process_text(text, args_str)
+  process_text_common(text, M.run_llm, args_str)
 end
 
--- Core function to process text with a full command
 local function process_text_with_full_command(text, full_command)
-  if not text or text == "" then
-    vim.notify("No text provided to process.", vim.log.levels.WARN)
-    return
-  end
-
   if not full_command or full_command == "" then
     vim.notify("No command provided.", vim.log.levels.WARN)
     return
   end
 
-  -- Check if current buffer is a scratch buffer that needs 'prompt' added to filename
-  local file_path = vim.api.nvim_buf_get_name(0)
-  local scratch_dir = vim.fn.expand('~/.local/share/nvim/scratch')
-
-  -- If this is a scratch file and doesn't have 'prompt' in the name, add it
-  if file_path:find(scratch_dir, 1, true) and not file_path:find("prompt", 1, true) then
-    scratch.add_name_to_file("prompt")
-  end
-
-  M.run_llm_with_full_command(text, full_command)
+  process_text_common(text, M.run_llm_with_full_command, full_command)
 end
 
-function M.query_visual_with_full_command(full_command)
+function M.query_visual(command_arg, use_full_command)
   -- Abort if input was cancelled from prompt
-  if full_command == vim.NIL then
+  if command_arg == vim.NIL then
     vim.notify('LLM prompt cancelled', vim.log.levels.INFO)
     return
   end
+
   local text, err = scratch.get_visual_selection()
   if err then
     vim.notify(err, vim.log.levels.ERROR)
     return
   end
-  process_text_with_full_command(text, full_command)
+
+  if use_full_command then
+    process_text_with_full_command(text, command_arg)
+  else
+    process_text(text, command_arg)
+  end
 end
 
--- Show llm logs in a scratch buffer
+function M.query_visual_with_full_command(full_command)
+  M.query_visual(full_command, true)
+end
+
 function M.show_logs(args_str)
   local buf = create_scratch_buffer()
   local bufnr = vim.api.nvim_buf_get_number(buf)
   vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Loading LLM logs..." })
 
-  -- Mark the created scratch buffer as logs
   vim.api.nvim_buf_call(buf, function()
     local name = "logs"
     if args_str and args_str ~= "" then
