@@ -1,10 +1,10 @@
-# Pelican
+# Pelicano
 
 A Neovim plugin for interacting with [Simon Willison's LLM CLI tool](https://github.com/simonw/llm) or other commandline LLM tools.
 
 Includes a simple scratch buffer plugin + a mechanism for streaming results from the LLM CLI tool.
 
-All of the functionality is exposed in [pelican.vim](https://github.com/kawpuh/pelican/blob/master/plugin/pelican.vim). There are no builtin mappings, but there's an example keymap below.
+All of the functionality is exposed in [pelicano.vim](https://github.com/kawpuh/pelicano/blob/master/plugin/pelicano.vim). There are no builtin mappings, but there's an example keymap below.
 
 ## Demo
 
@@ -51,7 +51,7 @@ noremap <leader>cy <cmd>YankCodeBlock<CR>
 noremap <leader>llm <cmd>LLMPrompt<CR>
 nnoremap <leader>lll :LLMLogs<CR>
 nnoremap <leader>llr :LLMLogs -r<CR>
-augroup PelicanMarkdown
+augroup PelicanoMarkdown
   au!
   au FileType markdown nnoremap <buffer> <C-m> :SelectCodeBlock<CR>"+y
   au FileType markdown nnoremap <buffer> <localleader>fb :ScratchBranch<CR>

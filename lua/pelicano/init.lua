@@ -1,6 +1,6 @@
 local M = {}
 
-local scratch = require('pelican.scratch')
+local scratch = require('pelicano.scratch')
 
 M.config = {
   llm_path = "llm",
